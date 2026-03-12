@@ -363,27 +363,6 @@
   <script>
     const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw2Yxt-lEqm3IRFd99aDU-Pe6jNUNf6Xc1jsR592vFj/exec';
 
-    // --- Rate limiting (client-side): máx 3 envíos por hora por dispositivo ---
-    const RL_KEY    = 'sv_submissions';
-    const RL_MAX    = 3;
-    const RL_WINDOW = 60 * 60 * 1000; // 1 hora en ms
-
-    function checkRateLimit() {
-      const now    = Date.now();
-      const stored = JSON.parse(localStorage.getItem(RL_KEY) || '[]');
-      const recent = stored.filter(ts => now - ts < RL_WINDOW);
-
-      if (recent.length >= RL_MAX) {
-        const oldest  = Math.min(...recent);
-        const waitMin = Math.ceil((RL_WINDOW - (now - oldest)) / 60000);
-        return { allowed: false, waitMin };
-      }
-
-      recent.push(now);
-      localStorage.setItem(RL_KEY, JSON.stringify(recent));
-      return { allowed: true };
-    }
-
     // Mostrar/ocultar campo "Otro país"
     document.getElementById('pais').addEventListener('change', function() {
       const otroInput = document.getElementById('paisOtro');
@@ -437,13 +416,6 @@
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(correo)) {
         showMessage('error', '⚠ Ingresa un correo electrónico válido.');
-        return;
-      }
-
-      // Verificar rate limit antes de enviar
-      const rl = checkRateLimit();
-      if (!rl.allowed) {
-        showMessage('error', `⚠ Demasiados intentos. Espera ${rl.waitMin} minuto(s) e intenta de nuevo.`);
         return;
       }
 
