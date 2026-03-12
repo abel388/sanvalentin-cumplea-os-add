@@ -372,7 +372,28 @@
   </div>
 
   <script>
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw2Yxt-lEqm3IRFd99aDU-Pe6jNUNf6Xc1jsR592vFj/dev';
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw2Yxt-lEqm3IRFd99aDU-Pe6jNUNf6Xc1jsR592vFj/exec';
+
+    // --- Rate limiting (client-side): máx 3 envíos por hora por dispositivo ---
+    const RL_KEY    = 'sv_submissions';
+    const RL_MAX    = 3;
+    const RL_WINDOW = 60 * 60 * 1000; // 1 hora en ms
+
+    function checkRateLimit() {
+      const now    = Date.now();
+      const stored = JSON.parse(localStorage.getItem(RL_KEY) || '[]');
+      const recent = stored.filter(ts => now - ts < RL_WINDOW);
+
+      if (recent.length >= RL_MAX) {
+        const oldest  = Math.min(...recent);
+        const waitMin = Math.ceil((RL_WINDOW - (now - oldest)) / 60000);
+        return { allowed: false, waitMin };
+      }
+
+      recent.push(now);
+      localStorage.setItem(RL_KEY, JSON.stringify(recent));
+      return { allowed: true };
+    }
 
     // Mostrar/ocultar campo "Otro país"
     document.getElementById('pais').addEventListener('change', function() {
@@ -387,8 +408,8 @@
       }
     });
 
-    const form      = document.getElementById('registroForm');
-    const submitBtn = document.getElementById('submitBtn');
+    const form       = document.getElementById('registroForm');
+    const submitBtn  = document.getElementById('submitBtn');
     const successMsg = document.getElementById('successMsg');
     const errorMsg   = document.getElementById('errorMsg');
 
@@ -404,15 +425,15 @@
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
 
-      const nombre        = document.getElementById('nombre').value.trim();
-      const correo        = document.getElementById('correo').value.trim();
-      const telefono      = document.getElementById('telefono').value.trim();
+      const nombre          = document.getElementById('nombre').value.trim();
+      const correo          = document.getElementById('correo').value.trim();
+      const telefono        = document.getElementById('telefono').value.trim();
       const fechaNacimiento = document.getElementById('fechaNacimiento').value;
-      const paisSelect   = document.getElementById('pais').value;
-      const paisOtro     = document.getElementById('paisOtro').value.trim();
-      const pais         = paisSelect === 'Otro' ? paisOtro : paisSelect;
-      const tipoDoc       = document.getElementById('tipoDoc').value;
-      const numDoc        = document.getElementById('numDoc').value.trim();
+      const paisSelect      = document.getElementById('pais').value;
+      const paisOtro        = document.getElementById('paisOtro').value.trim();
+      const pais            = paisSelect === 'Otro' ? paisOtro : paisSelect;
+      const tipoDoc         = document.getElementById('tipoDoc').value;
+      const numDoc          = document.getElementById('numDoc').value.trim();
 
       if (!nombre || !correo || !telefono || !fechaNacimiento || !paisSelect || !tipoDoc || !numDoc) {
         showMessage('error', '⚠ Por favor completa todos los campos.');
@@ -430,9 +451,17 @@
         return;
       }
 
+      // Verificar rate limit antes de enviar
+      const rl = checkRateLimit();
+      if (!rl.allowed) {
+        showMessage('error', `⚠ Demasiados intentos. Espera ${rl.waitMin} minuto(s) e intenta de nuevo.`);
+        return;
+      }
+
       submitBtn.disabled = true;
       submitBtn.innerHTML = '<span class="spinner"></span> Enviando...';
 
+      // Envío via POST: los datos van en el body, NO en la URL
       const params = new URLSearchParams();
       params.append('nombre',          nombre);
       params.append('correo',          correo);
@@ -442,15 +471,12 @@
       params.append('tipoDocumento',   tipoDoc);
       params.append('numeroDocumento', numDoc);
 
-      // Imagen pixel: bypasa CORS completamente desde file:// local
-      // El navegador hace la petición GET sin restricciones
       try {
-        await new Promise((resolve, reject) => {
-          const img = new Image();
-          const timeout = setTimeout(() => resolve(), 3000); // espera máx 3s
-          img.onload  = () => { clearTimeout(timeout); resolve(); };
-          img.onerror = () => { clearTimeout(timeout); resolve(); }; // error de imagen es normal, el GET igual se envió
-          img.src = SCRIPT_URL + '?' + params.toString();
+        await fetch(SCRIPT_URL, {
+          method: 'POST',
+          mode:   'no-cors', // solicitud simple CORS — sin preflight, sin PII en URL
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: params.toString()
         });
 
         showMessage('success', '✓ ¡Registro exitoso! Bienvenido/a 🎉');
