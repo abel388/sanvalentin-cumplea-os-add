@@ -450,7 +450,6 @@
       submitBtn.disabled = true;
       submitBtn.innerHTML = '<span class="spinner"></span> Enviando...';
 
-      // Envío via POST: los datos van en el body, NO en la URL
       const params = new URLSearchParams();
       params.append('nombre',          nombre);
       params.append('correo',          correo);
@@ -461,11 +460,12 @@
       params.append('numeroDocumento', numDoc);
 
       try {
-        await fetch(SCRIPT_URL, {
-          method: 'POST',
-          mode:   'no-cors', // solicitud simple CORS — sin preflight, sin PII en URL
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: params.toString()
+        await new Promise((resolve) => {
+          const img = new Image();
+          const timeout = setTimeout(() => resolve(), 4000);
+          img.onload  = () => { clearTimeout(timeout); resolve(); };
+          img.onerror = () => { clearTimeout(timeout); resolve(); };
+          img.src = SCRIPT_URL + '?' + params.toString();
         });
 
         showMessage('success', '✓ ¡Registro exitoso! Bienvenido/a 🎉');
