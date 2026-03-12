@@ -432,12 +432,9 @@
       params.append('numeroDocumento', numDoc);
 
       try {
-        await new Promise((resolve) => {
-          const img = new Image();
-          const timeout = setTimeout(() => resolve(), 4000);
-          img.onload  = () => { clearTimeout(timeout); resolve(); };
-          img.onerror = () => { clearTimeout(timeout); resolve(); };
-          img.src = SCRIPT_URL + '?' + params.toString();
+        await fetch(SCRIPT_URL + '?' + params.toString(), {
+          method: 'GET',
+          mode:   'no-cors'
         });
 
         showMessage('success', '✓ ¡Registro exitoso! Bienvenido/a 🎉');
